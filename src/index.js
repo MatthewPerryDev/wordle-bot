@@ -3,11 +3,8 @@
  */
 
 import { Router } from "itty-router";
-import {
-  InteractionResponseType,
-  InteractionType,
-  verifyKey,
-} from "discord-interactions";
+import { InteractionResponseType, InteractionType, verifyKey } from "discord-interactions";
+import { STATS, LEADERBOARD, WORDLE } from "./commands.js";
 
 class JsonResponse extends Response {
   constructor(body, init) {
@@ -21,14 +18,19 @@ class JsonResponse extends Response {
   }
 }
 
-const router = Router();
+async function wordle(message) {
+  let reg = RegExp('^\s*Wordle\s*([0-9]+)\s*(\d)\/\d\s*((?:[🟩⬛🟨]{5}\s*){1,6})$','u');
+  console.log(message)
+  if (reg.test(message.data.message)) {
+    return new JsonResponse({ type: 4, data: { content: "Valid Input" } });
+  } else {
+    return new JsonResponse({ type: 4, data: { content: "Invalid Input" } });
+  }
+}
 
-/**
- * A simple :wave: hello page to verify the worker is working.
- */
-router.get("/", (request, env) => {
-  return new Response(`👋 ${env.DISCORD_APPLICATION_ID}`);
-});
+
+
+const router = Router();
 
 /**
  * Main route for all requests sent from Discord.  All incoming messages will
@@ -37,22 +39,24 @@ router.get("/", (request, env) => {
  */
 router.post("/", async (request, env) => {
   const message = await request.json();
-  console.log(message);
+
   if (message.type === InteractionType.PING) {
-    // The `PING` message is used during the initial webhook handshake, and is
-    // required to configure the webhook in the developer portal.
-    console.log("Handling Ping request");
     return new JsonResponse({
       type: InteractionResponseType.PONG,
     });
   }
 
   if (message.type === InteractionType.APPLICATION_COMMAND) {
-    // Most user commands will come as `APPLICATION_COMMAND`.
+    switch (message.data.name.toLowerCase()) {
+      case WORDLE.name.toLowerCase():
+        return wordle(message);
+
+      default:
+        break;
+    }
     return new JsonResponse({ error: "Unknown Type" }, { status: 400 });
   }
 
-  console.error("Unknown Type");
   return new JsonResponse({ error: "Unknown Type" }, { status: 400 });
 });
 router.all("*", () => new Response("Not Found.", { status: 404 }));
@@ -70,20 +74,12 @@ export default {
       // Using the incoming headers, verify this request actually came from discord.
       const signature = request.headers.get("x-signature-ed25519");
       const timestamp = request.headers.get("x-signature-timestamp");
-      console.log(signature, timestamp, env.DISCORD_PUBLIC_KEY);
       const body = await request.clone().arrayBuffer();
-      const isValidRequest = verifyKey(
-        body,
-        signature,
-        timestamp,
-        env.DISCORD_PUBLIC_KEY
-      );
+      const isValidRequest = verifyKey(body, signature, timestamp, env.DISCORD_PUBLIC_KEY);
       if (!isValidRequest) {
-        console.error("Invalid Request");
         return new Response("Bad request signature.", { status: 401 });
       }
     }
-
     // Dispatch the request to the appropriate route
     return router.handle(request, env);
   },
