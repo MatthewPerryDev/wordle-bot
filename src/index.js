@@ -6,7 +6,7 @@ import { Router } from "itty-router";
 import { InteractionResponseType, InteractionType, verifyKey } from "discord-interactions";
 import { STATS, LEADERBOARD, WORDLE } from "./commands.js";
 import { Wordle } from "./Wordle.js"
-// this is fine
+
 class JsonResponse extends Response {
 	constructor(body, init) {
 		const jsonBody = JSON.stringify(body);
@@ -27,15 +27,14 @@ async function wordle(message, env) {
 	}
 
 	let body = await env.BOT_DB.get(message.member.user['id']);
-	console.log(body);
+	body = JSON.parse(body);
 
 	let captures = Wordle.parseDateAndScore(submission);
-
 	let date = parseInt(captures[1]);
 	let attempt = captures[2];
+	
 
 	if (body != null) {
-		body = JSON.parse(body);
 		if (body.dates.includes(date)) {
 			return new JsonResponse({ type: 4, data: { content: "You have already made your submission for this day." } });
 		}
@@ -45,6 +44,20 @@ async function wordle(message, env) {
 
 	await env.BOT_DB.put(message.member.user['id'], Wordle.storeMetricsForNewUser(attempt, date));
 	return new JsonResponse({ type: 4, data: { content: "Valid Input" } });
+}
+
+async function stats(message,env){
+	let body = await env.BOT_DB.get(message.member.user['id']);
+	body = JSON.parse(body);
+	if (body==null) {
+		return new JsonResponse({ type: 4, data: { content: "You have not submitted any solutions." } });
+	}
+	return new JsonResponse({ type: 4, data: { content: `You have a score of ${body.score}.` } });
+}
+
+async function leaderboard(message,env){
+	let body = env.BOT_DB.list();
+	console.log(body);
 }
 
 const router = Router();
@@ -67,7 +80,10 @@ router.post("/", async (request, env) => {
 		switch (message.data.name.toLowerCase()) {
 			case WORDLE.name.toLowerCase():
 				return wordle(message, env);
-
+			case STATS.name.toLocaleLowerCase():
+				return stats(message,env);
+			case LEADERBOARD.name.toLocaleLowerCase():
+				return leaderboard(message,env);
 			default:
 				break;
 		}
