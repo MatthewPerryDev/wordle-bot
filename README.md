@@ -1,3 +1,3 @@
 # Wordle Bot
-This is a slash command based discord bot. 
+This is a slash command based discord bot.
 
