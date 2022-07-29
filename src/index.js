@@ -34,6 +34,7 @@ async function wordle(message, env) {
 	let date = parseInt(captures[1]);
 	let attempt = captures[2];
 
+	//New Guild
 	if (body == null) {
 		let data = {}
 		data[userId] = Wordle.storeMetricsForNewUser(attempt, date);
@@ -42,8 +43,7 @@ async function wordle(message, env) {
 		return new JsonResponse({ type: 4, data: { content: "Valid Input" } });
 	}
 
-	//Exisitng guild
-	//old user
+	//Existing User
 	if (userId in body) {
 		let userData = JSON.parse(body[userId]);
 		if (userData.dates.includes(date)) {
