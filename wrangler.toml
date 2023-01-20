@@ -3,6 +3,7 @@ main = "src/index.js"
 compatibility_date = "2022-06-18"
 node_compat = true
 
-kv_namespaces = [
-	{ binding = "BOT_DB", id = "24af759ed89444659c569d0a04b191b7" }
-]
+[[ d1_databases ]]
+binding = "BOT_DB"
+database_name = "wordl-bot-db"
+database_id = "c283f8ba-8f9a-493c-bb45-0daf6102ef64"

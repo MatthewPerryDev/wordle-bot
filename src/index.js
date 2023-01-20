@@ -1,11 +1,8 @@
-/**
- * The core server that runs on a Cloudflare worker.
- */
-
 import { Router } from "itty-router";
 import { InteractionResponseType, InteractionType, verifyKey } from "discord-interactions";
 import { STATS, LEADERBOARD, WORDLE } from "./commands.js";
 import { Wordle } from "./Wordle.js"
+
 
 class JsonResponse extends Response {
 	constructor(body, init) {
@@ -20,42 +17,33 @@ class JsonResponse extends Response {
 }
 
 async function wordle(message, env) {
+	
 	let submission = message.data.options[0]['value'];
-	let guildId = message.data.guild_id;
-	let userId = message.member.user.id;
+	let userID = message.member.user.id;
+
 	if (!Wordle.isValidWordleExpression(submission)) {
 
 		return new JsonResponse({ type: 4, data: { content: "Invalid Input" } });
 	}
 
-	let body = await env.BOT_DB.get(guildId);
-	body = JSON.parse(body);
 	let captures = Wordle.parseDateAndScore(submission);
 	let date = parseInt(captures[1]);
 	let attempt = captures[2];
 
-	//New Guild
-	if (body == null) {
-		let data = {}
-		data[userId] = Wordle.storeMetricsForNewUser(attempt, date);
 
-		await env.BOT_DB.put(guildId, JSON.stringify(data));
-		return new JsonResponse({ type: 4, data: { content: "Valid Input" } });
-	}
-
+	let result = await env.BOT_DB.prepare('SELECT * FROM Users WHERE UserID = ?').bind(userID).first();
 	//Existing User
-	if (userId in body) {
-		let userData = JSON.parse(body[userId]);
-		if (userData.dates.includes(date)) {
+	if (result != null) {
+		result = await env.BOT_DB.prepare('SELECT * FROM Submissions WHERE WordleDay = ? AND UserID = ?').bind(date,userID).all();
+		if (result.results.length > 0) {
 			return new JsonResponse({ type: 4, data: { content: "You have already made your submission for this day." } });
 		}
-		body[userId] = Wordle.storeMetricsForExistingUser(userData, attempt, date)
-		await env.BOT_DB.put(guildId, JSON.stringify(body));
+		await env.BOT_DB.prepare('INSERT INTO Submissions (UserID, Attempts, WordleDay) VALUES (?, ?, ?)').bind(userID,attempt,date).run();
 		return new JsonResponse({ type: 4, data: { content: "Valid Input" } });
 	}
 	//New user
-	body[userId] = Wordle.storeMetricsForNewUser(attempt, date);
-	await env.BOT_DB.put(guildId, JSON.stringify(body));
+	await env.BOT_DB.prepare('INSERT INTO Users (UserID, Score) VALUES (?, ?)').bind(userID,(6 - attempt) + 1).run();
+	await env.BOT_DB.prepare('INSERT INTO Submissions (UserID, Attempts, WordleDay) VALUES (?, ?, ?)').bind(userID,attempt,date).run();
 	return new JsonResponse({ type: 4, data: { content: "Valid Input" } });
 }
 
@@ -114,6 +102,7 @@ export default {
 	 * @returns
 	 */
 	async fetch(request, env) {
+
 		if (request.method === "POST") {
 			// Using the incoming headers, verify this request actually came from discord.
 			const signature = request.headers.get("x-signature-ed25519");
