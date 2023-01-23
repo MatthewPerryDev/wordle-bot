@@ -2,8 +2,8 @@ import { Router } from "itty-router";
 import { InteractionResponseType, InteractionType, verifyKey } from "discord-interactions";
 import { STATS, LEADERBOARD, WORDLE } from "./commands.js";
 import { Wordle } from "./Wordle.js"
-
-
+//import { REST } from "@discordjs/rest";
+//import { Routes } from "discord-api-types/v10";
 class JsonResponse extends Response {
 	constructor(body, init) {
 		const jsonBody = JSON.stringify(body);
@@ -20,7 +20,7 @@ async function wordle(message, env) {
 	
 	let submission = message.data.options[0]['value'];
 	let userID = message.member.user.id;
-
+	console.log(userID);
 	if (!Wordle.isValidWordleExpression(submission)) {
 
 		return new JsonResponse({ type: 4, data: { content: "Invalid Input" } });
@@ -48,16 +48,32 @@ async function wordle(message, env) {
 }
 
 async function stats(message, env) {
-	let body = await env.BOT_DB.get(message.member.user.id);
-	body = JSON.parse(body);
+	let body = await env.BOT_DB.prepare('SELECT * FROM Users WHERE UserID = ?').bind(message.member.user.id).first();
 	if (body == null) {
 		return new JsonResponse({ type: 4, data: { content: "You have not submitted any solutions." } });
 	}
-	return new JsonResponse({ type: 4, data: { content: `You have a score of ${body.score}.` } });
+	return new JsonResponse({ type: 4, data: { content: `You have a score of ${body.Score}.` } });
 }
 
 async function leaderboard(message, env) {
-	console.log('Not ready');
+	console.log(message);
+	let {results} = await env.BOT_DB.prepare('SELECT * FROM Users ORDER BY Score DESC').all();
+	let content = "";
+	let counter = 0;
+	for (const user of results) {
+		content+=	`${counter+1}. <@${user['UserID']}>\n`	
+		counter++;
+		if (counter>24) {
+			break;
+		}
+	}
+	if (results.findIndex(item => item['UserID'] === message.member.id)> 24) {
+		content+= `${results.findIndex(item => item['UserID'] === message.member.id)+1}. <@${message.member.id}>`
+	}
+
+	return new JsonResponse({ type: 4, data: { content: content } });
+
+
 }
 
 const router = Router();
