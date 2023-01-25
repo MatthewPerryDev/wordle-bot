@@ -2,8 +2,7 @@ import { Router } from "itty-router";
 import { InteractionResponseType, InteractionType, verifyKey } from "discord-interactions";
 import { STATS, LEADERBOARD, WORDLE } from "./commands.js";
 import { Wordle } from "./Wordle.js"
-//import { REST } from "@discordjs/rest";
-//import { Routes } from "discord-api-types/v10";
+
 class JsonResponse extends Response {
 	constructor(body, init) {
 		const jsonBody = JSON.stringify(body);
@@ -17,33 +16,31 @@ class JsonResponse extends Response {
 }
 
 async function wordle(message, env) {
-	
 	let submission = message.data.options[0]['value'];
 	let userID = message.member.user.id;
-	console.log(userID);
 	if (!Wordle.isValidWordleExpression(submission)) {
 
 		return new JsonResponse({ type: 4, data: { content: "Invalid Input" } });
 	}
 
-	let captures = Wordle.parseDateAndScore(submission);
-	let date = parseInt(captures[1]);
-	let attempt = captures[2];
-
+	let {date, attempts} = Wordle.parseDateAndAttempts(submission);
 
 	let result = await env.BOT_DB.prepare('SELECT * FROM Users WHERE UserID = ?').bind(userID).first();
-	//Existing User
-	if (result != null) {
-		result = await env.BOT_DB.prepare('SELECT * FROM Submissions WHERE WordleDay = ? AND UserID = ?').bind(date,userID).all();
-		if (result.results.length > 0) {
-			return new JsonResponse({ type: 4, data: { content: "You have already made your submission for this day." } });
-		}
-		await env.BOT_DB.prepare('INSERT INTO Submissions (UserID, Attempts, WordleDay) VALUES (?, ?, ?)').bind(userID,attempt,date).run();
+	//New user
+	if (result == null) {
+		await env.BOT_DB.prepare('INSERT INTO Users (UserID, Score) VALUES (?, ?)').bind(userID,(6 - attempts) + 1).run();
+		await env.BOT_DB.prepare('INSERT INTO Submissions (UserID, Attempts, WordleDay) VALUES (?, ?, ?)').bind(userID,attempts,date).run();
 		return new JsonResponse({ type: 4, data: { content: "Valid Input" } });
 	}
-	//New user
-	await env.BOT_DB.prepare('INSERT INTO Users (UserID, Score) VALUES (?, ?)').bind(userID,(6 - attempt) + 1).run();
-	await env.BOT_DB.prepare('INSERT INTO Submissions (UserID, Attempts, WordleDay) VALUES (?, ?, ?)').bind(userID,attempt,date).run();
+
+	//Existing User
+	result = await env.BOT_DB.prepare('SELECT * FROM Submissions WHERE WordleDay = ? AND UserID = ?').bind(date,userID).all();
+	console.log(result)
+	if (result.results.length > 0) {
+		return new JsonResponse({ type: 4, data: { content: "You have already made your submission for this day." } });
+	}
+	await env.BOT_DB.prepare('UPDATE Users SET Score = Score + ? WHERE UserID = ?').bind((6 - attempts)+ 1, userID ).run();
+	await env.BOT_DB.prepare('INSERT INTO Submissions (UserID, Attempts, WordleDay) VALUES (?, ?, ?)').bind(userID,attempts,date).run();
 	return new JsonResponse({ type: 4, data: { content: "Valid Input" } });
 }
 
@@ -56,7 +53,6 @@ async function stats(message, env) {
 }
 
 async function leaderboard(message, env) {
-	console.log(message);
 	let {results} = await env.BOT_DB.prepare('SELECT * FROM Users ORDER BY Score DESC').all();
 	let content = "";
 	let counter = 0;
@@ -72,8 +68,6 @@ async function leaderboard(message, env) {
 	}
 
 	return new JsonResponse({ type: 4, data: { content: content } });
-
-
 }
 
 const router = Router();

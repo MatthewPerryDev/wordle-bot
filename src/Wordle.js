@@ -7,15 +7,12 @@ class Wordle {
 		return this.validInputParsingRegex.test(submission);
 	}
 
-	static parseDateAndScore(submission) {
-		return this.validInputParsingRegex.exec(submission);
+	static parseDateAndAttempts(submission) {
+		let parsedData = this.validInputParsingRegex.exec(submission);
+		let date = parsedData[1];
+		let attempts = parsedData[2] == 'X' ? 7 : parseInt(parsedData[2]);
+		return {date, attempts};
 	}
-
-	static isFailedAttemptFor(currentAttempt) {
-		return currentAttempt == 'X';
-	}
-
-
 
 }
 
